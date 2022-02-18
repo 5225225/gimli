@@ -1889,7 +1889,7 @@ mod tests {
     use crate::test_util::GimliSectionMethods;
     use core::u64;
     use core::u8;
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     #[test]
     fn test_parse_debug_line_32_ok() {
@@ -2922,7 +2922,8 @@ mod tests {
             let header_start = Label::new();
             let end = Label::new();
             let header_end = Label::new();
-            let section = Section::with_endian(Endian::Little)
+            let mut section = Section::with_endian(Endian::Little);
+            section
                 .initial_length(format, &length, &start)
                 .D16(5)
                 // Address size.

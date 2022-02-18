@@ -546,33 +546,43 @@ pub mod tests {
     use test_assembler::Section;
 
     pub trait AbbrevSectionMethods {
-        fn abbrev(self, code: u64, tag: constants::DwTag, children: constants::DwChildren) -> Self;
-        fn abbrev_null(self) -> Self;
-        fn abbrev_attr(self, name: constants::DwAt, form: constants::DwForm) -> Self;
-        fn abbrev_attr_implicit_const(self, name: constants::DwAt, value: i64) -> Self;
-        fn abbrev_attr_null(self) -> Self;
+        fn abbrev(
+            &mut self,
+            code: u64,
+            tag: constants::DwTag,
+            children: constants::DwChildren,
+        ) -> &mut Self;
+        fn abbrev_null(&mut self) -> &mut Self;
+        fn abbrev_attr(&mut self, name: constants::DwAt, form: constants::DwForm) -> &mut Self;
+        fn abbrev_attr_implicit_const(&mut self, name: constants::DwAt, value: i64) -> &mut Self;
+        fn abbrev_attr_null(&mut self) -> &mut Self;
     }
 
     impl AbbrevSectionMethods for Section {
-        fn abbrev(self, code: u64, tag: constants::DwTag, children: constants::DwChildren) -> Self {
+        fn abbrev(
+            &mut self,
+            code: u64,
+            tag: constants::DwTag,
+            children: constants::DwChildren,
+        ) -> &mut Self {
             self.uleb(code).uleb(tag.0.into()).D8(children.0)
         }
 
-        fn abbrev_null(self) -> Self {
+        fn abbrev_null(&mut self) -> &mut Self {
             self.D8(0)
         }
 
-        fn abbrev_attr(self, name: constants::DwAt, form: constants::DwForm) -> Self {
+        fn abbrev_attr(&mut self, name: constants::DwAt, form: constants::DwForm) -> &mut Self {
             self.uleb(name.0.into()).uleb(form.0.into())
         }
 
-        fn abbrev_attr_implicit_const(self, name: constants::DwAt, value: i64) -> Self {
+        fn abbrev_attr_implicit_const(&mut self, name: constants::DwAt, value: i64) -> &mut Self {
             self.uleb(name.0.into())
                 .uleb(constants::DW_FORM_implicit_const.0.into())
                 .sleb(value)
         }
 
-        fn abbrev_attr_null(self) -> Self {
+        fn abbrev_attr_null(&mut self) -> &mut Self {
             self.D8(0).D8(0)
         }
     }
@@ -581,20 +591,20 @@ pub mod tests {
     fn test_debug_abbrev_ok() {
         let extra_start = [1, 2, 3, 4];
         let expected_rest = [5, 6, 7, 8];
+        let mut section = Section::new();
         #[rustfmt::skip]
-        let buf = Section::new()
-            .append_bytes(&extra_start)
-            .abbrev(2, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
-                .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
-                .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
-                .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
-                .abbrev_attr_null()
-            .abbrev_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+        section.append_bytes(&extra_start)
+               .abbrev(2, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
+                   .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
+                   .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
+                   .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
+                   .abbrev_attr_null()
+               .abbrev_null()
+               .append_bytes(&expected_rest);
+
+        let buf = section.get_contents().unwrap();
 
         let abbrev1 = Abbreviation::new(
             1,
@@ -734,19 +744,18 @@ pub mod tests {
     #[test]
     fn test_parse_abbreviations_ok() {
         let expected_rest = [1, 2, 3, 4];
+        let mut section = Section::new();
         #[rustfmt::skip]
-        let buf = Section::new()
-            .abbrev(2, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
-                .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
-                .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
-                .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
-                .abbrev_attr_null()
-            .abbrev_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+        section.abbrev(2, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
+                   .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
+                   .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
+                   .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
+                   .abbrev_attr_null()
+               .abbrev_null()
+               .append_bytes(&expected_rest);
+        let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&*buf, LittleEndian);
 
         let abbrev1 = Abbreviation::new(
@@ -789,19 +798,18 @@ pub mod tests {
     #[test]
     fn test_parse_abbreviations_duplicate() {
         let expected_rest = [1, 2, 3, 4];
+        let mut section = Section::new();
         #[rustfmt::skip]
-        let buf = Section::new()
-            .abbrev(1, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
-                .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
-                .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
-                .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
-                .abbrev_attr_null()
-            .abbrev_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+        section.abbrev(1, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
+                   .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev(1, constants::DW_TAG_compile_unit, constants::DW_CHILDREN_yes)
+                   .abbrev_attr(constants::DW_AT_producer, constants::DW_FORM_strp)
+                   .abbrev_attr(constants::DW_AT_language, constants::DW_FORM_data2)
+                   .abbrev_attr_null()
+               .abbrev_null()
+               .append_bytes(&expected_rest);
+        let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&*buf, LittleEndian);
 
         match Abbreviations::parse(buf) {
@@ -846,13 +854,13 @@ pub mod tests {
     #[test]
     fn test_parse_abbreviation_ok() {
         let expected_rest = [0x01, 0x02, 0x03, 0x04];
-        let buf = Section::new()
+        let mut section = Section::new();
+        section
             .abbrev(1, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
             .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_string)
             .abbrev_attr_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+            .append_bytes(&expected_rest);
+        let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&*buf, LittleEndian);
 
         let expect = Some(Abbreviation::new(
@@ -875,13 +883,13 @@ pub mod tests {
     #[test]
     fn test_parse_abbreviation_implicit_const_ok() {
         let expected_rest = [0x01, 0x02, 0x03, 0x04];
-        let buf = Section::new()
+        let mut section = Section::new();
+        section
             .abbrev(1, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
             .abbrev_attr_implicit_const(constants::DW_AT_name, -42)
             .abbrev_attr_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+            .append_bytes(&expected_rest);
+        let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&*buf, LittleEndian);
 
         let expect = Some(Abbreviation::new(
@@ -903,11 +911,11 @@ pub mod tests {
 
     #[test]
     fn test_parse_abbreviation_implicit_const_no_const() {
-        let buf = Section::new()
+        let mut section = Section::new();
+        section
             .abbrev(1, constants::DW_TAG_subprogram, constants::DW_CHILDREN_no)
-            .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_implicit_const)
-            .get_contents()
-            .unwrap();
+            .abbrev_attr(constants::DW_AT_name, constants::DW_FORM_implicit_const);
+        let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&*buf, LittleEndian);
 
         match Abbreviation::parse(buf) {
@@ -919,11 +927,9 @@ pub mod tests {
     #[test]
     fn test_parse_null_abbreviation_ok() {
         let expected_rest = [0x01, 0x02, 0x03, 0x04];
-        let buf = Section::new()
-            .abbrev_null()
-            .append_bytes(&expected_rest)
-            .get_contents()
-            .unwrap();
+        let mut section = Section::new();
+        section.abbrev_null().append_bytes(&expected_rest);
+        let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&*buf, LittleEndian);
 
         let abbrev = Abbreviation::parse(rest).expect("Should parse null abbreviation");

@@ -606,7 +606,7 @@ mod tests {
     use crate::common::Format;
     use crate::endianity::LittleEndian;
     use crate::test_util::GimliSectionMethods;
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     #[test]
     fn test_rnglists_32() {
@@ -615,7 +615,8 @@ mod tests {
             version: 5,
             address_size: 4,
         };
-        let section = Section::with_endian(Endian::Little)
+        let mut section = Section::with_endian(Endian::Little);
+        section
             .L32(0x0300_0000)
             .L32(0x0301_0300)
             .L32(0x0301_0400)
@@ -627,10 +628,11 @@ mod tests {
         let start = Label::new();
         let first = Label::new();
         let size = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // Header
-            .mark(&start)
+        // Header
+        section.mark(&start)
             .L32(&size)
             .L16(encoding.version)
             .L8(encoding.address_size)
@@ -807,7 +809,9 @@ mod tests {
             version: 5,
             address_size: 8,
         };
-        let section = Section::with_endian(Endian::Little)
+
+        let mut section = Section::with_endian(Endian::Little);
+        section
             .L64(0x0300_0000)
             .L64(0x0301_0300)
             .L64(0x0301_0400)
@@ -819,10 +823,11 @@ mod tests {
         let start = Label::new();
         let first = Label::new();
         let size = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // Header
-            .mark(&start)
+        // Header
+        section.mark(&start)
             .L32(0xffff_ffff)
             .L64(&size)
             .L16(encoding.version)
@@ -1029,10 +1034,11 @@ mod tests {
     fn test_ranges_32() {
         let start = Label::new();
         let first = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // A range before the offset.
-            .mark(&start)
+        // A range before the offset.
+        section.mark(&start)
             .L32(0x10000).L32(0x10100)
             .mark(&first)
             // A normal range.
@@ -1141,10 +1147,11 @@ mod tests {
     fn test_ranges_64() {
         let start = Label::new();
         let first = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // A range before the offset.
-            .mark(&start)
+        // A range before the offset.
+        section.mark(&start)
             .L64(0x10000).L64(0x10100)
             .mark(&first)
             // A normal range.
@@ -1251,10 +1258,11 @@ mod tests {
 
     #[test]
     fn test_ranges_invalid() {
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // An invalid range.
-            .L32(0x20000).L32(0x10000)
+        // An invalid range.
+        section.L32(0x20000).L32(0x10000)
             // An invalid range after wrapping.
             .L32(0x20000).L32(0xff01_0000);
 
@@ -1321,7 +1329,8 @@ mod tests {
             let start = Label::new();
             let first = Label::new();
             let end = Label::new();
-            let mut section = Section::with_endian(Endian::Little)
+            let mut section = Section::with_endian(Endian::Little);
+            section
                 .mark(&zero)
                 .initial_length(format, &length, &start)
                 .D16(encoding.version)
@@ -1330,9 +1339,9 @@ mod tests {
                 .D32(20)
                 .mark(&first);
             for i in 0..20 {
-                section = section.word(format.word_size(), 1000 + i);
+                section.word(format.word_size(), 1000 + i);
             }
-            section = section.mark(&end);
+            section.mark(&end);
             length.set_const((&end - &start) as u64);
             let section = section.get_contents().unwrap();
 

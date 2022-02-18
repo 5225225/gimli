@@ -3226,25 +3226,25 @@ mod tests {
     use crate::test_util::GimliSectionMethods;
     use alloc::vec::Vec;
     use core::cell::Cell;
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     // Mixin methods for `Section` to help define binary test data.
 
     trait UnitSectionMethods {
-        fn unit<'input, E>(self, unit: &mut UnitHeader<EndianSlice<'input, E>>) -> Self
+        fn unit<'input, E>(&mut self, unit: &mut UnitHeader<EndianSlice<'input, E>>) -> &mut Self
         where
             E: Endianity;
-        fn die<F>(self, code: u64, attr: F) -> Self
+        fn die<F>(&mut self, code: u64, attr: F) -> &mut Self
         where
-            F: Fn(Section) -> Section;
-        fn die_null(self) -> Self;
-        fn attr_string(self, s: &str) -> Self;
-        fn attr_ref1(self, o: u8) -> Self;
-        fn offset(self, offset: usize, format: Format) -> Self;
+            F: Fn(&mut Section) -> &mut Section;
+        fn die_null(&mut self) -> &mut Self;
+        fn attr_string(&mut self, s: &str) -> &mut Self;
+        fn attr_ref1(&mut self, o: u8) -> &mut Self;
+        fn offset(&mut self, offset: usize, format: Format) -> &mut Self;
     }
 
     impl UnitSectionMethods for Section {
-        fn unit<'input, E>(self, unit: &mut UnitHeader<EndianSlice<'input, E>>) -> Self
+        fn unit<'input, E>(&mut self, unit: &mut UnitHeader<EndianSlice<'input, E>>) -> &mut Self
         where
             E: Endianity,
         {
@@ -3253,30 +3253,31 @@ mod tests {
             let start = Label::new();
             let end = Label::new();
 
-            let section = match unit.format() {
+            match unit.format() {
                 Format::Dwarf32 => self.L32(&length),
                 Format::Dwarf64 => self.L32(0xffff_ffff).L64(&length),
             };
 
-            let section = match unit.version() {
-                2 | 3 | 4 => section
-                    .mark(&start)
-                    .L16(unit.version())
-                    .offset(unit.debug_abbrev_offset.0, unit.format())
-                    .D8(unit.address_size()),
-                5 => section
-                    .mark(&start)
-                    .L16(unit.version())
-                    .D8(unit.type_().dw_ut().0)
-                    .D8(unit.address_size())
-                    .offset(unit.debug_abbrev_offset.0, unit.format()),
+            match unit.version() {
+                2 | 3 | 4 => {
+                    self.mark(&start)
+                        .L16(unit.version())
+                        .offset(unit.debug_abbrev_offset.0, unit.format())
+                        .D8(unit.address_size());
+                }
+                5 => {
+                    self.mark(&start)
+                        .L16(unit.version())
+                        .D8(unit.type_().dw_ut().0)
+                        .D8(unit.address_size())
+                        .offset(unit.debug_abbrev_offset.0, unit.format());
+                }
                 _ => unreachable!(),
             };
 
-            let section = match unit.type_() {
+            match unit.type_() {
                 UnitType::Compilation | UnitType::Partial => {
                     unit.unit_offset = DebugInfoOffset(size as usize).into();
-                    section
                 }
                 UnitType::Type {
                     type_signature,
@@ -3291,45 +3292,44 @@ mod tests {
                     } else {
                         unit.unit_offset = DebugTypesOffset(size as usize).into();
                     }
-                    section
-                        .L64(type_signature.0)
-                        .offset(type_offset.0, unit.format())
+                    self.L64(type_signature.0)
+                        .offset(type_offset.0, unit.format());
                 }
                 UnitType::Skeleton(dwo_id) | UnitType::SplitCompilation(dwo_id) => {
                     unit.unit_offset = DebugInfoOffset(size as usize).into();
-                    section.L64(dwo_id.0)
+                    self.L64(dwo_id.0);
                 }
             };
 
-            let section = section.append_bytes(unit.entries_buf.into()).mark(&end);
+            self.append_bytes(unit.entries_buf.into()).mark(&end);
 
             unit.unit_length = (&end - &start) as usize;
             length.set_const(unit.unit_length as u64);
 
-            section
+            self
         }
 
-        fn die<F>(self, code: u64, attr: F) -> Self
+        fn die<F>(&mut self, code: u64, attr: F) -> &mut Self
         where
-            F: Fn(Section) -> Section,
+            F: Fn(&mut Section) -> &mut Section,
         {
-            let section = self.uleb(code);
-            attr(section)
+            self.uleb(code);
+            attr(self)
         }
 
-        fn die_null(self) -> Self {
+        fn die_null(&mut self) -> &mut Self {
             self.D8(0)
         }
 
-        fn attr_string(self, attr: &str) -> Self {
+        fn attr_string(&mut self, attr: &str) -> &mut Self {
             self.append_bytes(attr.as_bytes()).D8(0)
         }
 
-        fn attr_ref1(self, attr: u8) -> Self {
+        fn attr_ref1(&mut self, attr: u8) -> &mut Self {
             self.D8(attr)
         }
 
-        fn offset(self, offset: usize, format: Format) -> Self {
+        fn offset(&mut self, offset: usize, format: Format) -> &mut Self {
             match format {
                 Format::Dwarf32 => self.L32(offset as u32),
                 Format::Dwarf64 => self.L64(offset as u64),
@@ -3350,7 +3350,8 @@ mod tests {
 
     #[test]
     fn test_parse_debug_abbrev_offset_32() {
-        let section = Section::with_endian(Endian::Little).L32(0x0403_0201);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L32(0x0403_0201);
         let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3374,7 +3375,8 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn test_parse_debug_abbrev_offset_64() {
-        let section = Section::with_endian(Endian::Little).L64(0x0807_0605_0403_0201);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L64(0x0807_0605_0403_0201);
         let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3397,7 +3399,8 @@ mod tests {
 
     #[test]
     fn test_parse_debug_info_offset_32() {
-        let section = Section::with_endian(Endian::Little).L32(0x0403_0201);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L32(0x0403_0201);
         let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3421,7 +3424,8 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn test_parse_debug_info_offset_64() {
-        let section = Section::with_endian(Endian::Little).L64(0x0807_0605_0403_0201);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L64(0x0807_0605_0403_0201);
         let buf = section.get_contents().unwrap();
         let buf = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3470,9 +3474,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut unit64)
-            .unit(&mut unit32);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit64).unit(&mut unit32);
         let buf = section.get_contents().unwrap();
 
         let debug_info = DebugInfo::new(&buf, LittleEndian);
@@ -3529,9 +3532,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3559,9 +3561,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3588,9 +3589,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3618,9 +3618,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3647,9 +3646,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3677,9 +3675,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3706,9 +3703,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3736,9 +3732,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3765,9 +3760,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3795,9 +3789,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3868,9 +3861,8 @@ mod tests {
             unit_offset: DebugTypesOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3901,9 +3893,8 @@ mod tests {
             unit_offset: DebugTypesOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3933,9 +3924,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3966,9 +3956,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -3998,9 +3987,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -4031,9 +4019,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(expected_rest, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little)
-            .unit(&mut expected_unit)
-            .append_bytes(expected_rest);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut expected_unit).append_bytes(expected_rest);
         let buf = section.get_contents().unwrap();
         let rest = &mut EndianSlice::new(&buf, LittleEndian);
 
@@ -4046,11 +4033,11 @@ mod tests {
 
     fn section_contents<F>(f: F) -> Vec<u8>
     where
-        F: Fn(Section) -> Section,
+        F: Fn(&mut Section) -> &mut Section,
     {
-        f(Section::with_endian(Endian::Little))
-            .get_contents()
-            .unwrap()
+        let mut section = Section::with_endian(Endian::Little);
+        f(&mut section);
+        section.get_contents().unwrap()
     }
 
     #[test]
@@ -5158,39 +5145,43 @@ mod tests {
         }
     }
 
+    #[rustfmt::skip]
     fn entries_cursor_tests_abbrev_buf() -> Vec<u8> {
-        #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev_null();
+        let mut section = Section::with_endian(Endian::Little);
+
+        section.abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev_null();
+
         section.get_contents().unwrap()
     }
 
+    #[rustfmt::skip]
     fn entries_cursor_tests_debug_info_buf() -> Vec<u8> {
-        #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .die(1, |s| s.attr_string("001"))
-                .die(1, |s| s.attr_string("002"))
-                    .die(1, |s| s.attr_string("003"))
-                        .die_null()
-                    .die_null()
-                .die(1, |s| s.attr_string("004"))
-                    .die(1, |s| s.attr_string("005"))
-                        .die_null()
-                    .die(1, |s| s.attr_string("006"))
-                        .die_null()
-                    .die_null()
-                .die(1, |s| s.attr_string("007"))
-                    .die(1, |s| s.attr_string("008"))
-                        .die(1, |s| s.attr_string("009"))
-                            .die_null()
-                        .die_null()
-                    .die_null()
-                .die(1, |s| s.attr_string("010"))
-                    .die_null()
-                .die_null();
+        let mut section = Section::with_endian(Endian::Little);
+
+        section.die(1, |s| s.attr_string("001"))
+                   .die(1, |s| s.attr_string("002"))
+                       .die(1, |s| s.attr_string("003"))
+                           .die_null()
+                       .die_null()
+                   .die(1, |s| s.attr_string("004"))
+                       .die(1, |s| s.attr_string("005"))
+                           .die_null()
+                       .die(1, |s| s.attr_string("006"))
+                           .die_null()
+                       .die_null()
+                   .die(1, |s| s.attr_string("007"))
+                       .die(1, |s| s.attr_string("008"))
+                           .die(1, |s| s.attr_string("009"))
+                               .die_null()
+                           .die_null()
+                       .die_null()
+                   .die(1, |s| s.attr_string("010"))
+                       .die_null()
+                   .die_null();
+
         let entries_buf = section.get_contents().unwrap();
 
         let encoding = Encoding {
@@ -5206,17 +5197,21 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(&entries_buf, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little).unit(&mut unit);
+        let mut section = Section::with_endian(Endian::Little);
+section        .unit(&mut unit);
         section.get_contents().unwrap()
     }
 
     #[test]
     fn test_cursor_next_entry_incomplete() {
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
+        let mut section = Section::with_endian(Endian::Little);
+
+        section
             .die(1, |s| s.attr_string("001"))
-                .die(1, |s| s.attr_string("002"))
-                    .die(1, |s| s);
+            .die(1, |s| s.attr_string("002"))
+            .die(1, |s| s);
+
         let entries_buf = section.get_contents().unwrap();
 
         let encoding = Encoding {
@@ -5232,7 +5227,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(&entries_buf, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little).unit(&mut unit);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit);
         let info_buf = &section.get_contents().unwrap();
         let debug_info = DebugInfo::new(info_buf, LittleEndian);
 
@@ -5454,17 +5450,19 @@ mod tests {
         assert!(cursor.current().is_none());
     }
 
+    #[rustfmt::skip]
     fn entries_cursor_sibling_abbrev_buf() -> Vec<u8> {
-        #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr(DW_AT_sibling, DW_FORM_ref1)
-                .abbrev_attr_null()
-            .abbrev(2, DW_TAG_subprogram, DW_CHILDREN_yes)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr_null()
-                .abbrev_null();
+        let mut section = Section::with_endian(Endian::Little);
+
+        section.abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr(DW_AT_sibling, DW_FORM_ref1)
+                   .abbrev_attr_null()
+               .abbrev(2, DW_TAG_subprogram, DW_CHILDREN_yes)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr_null()
+                   .abbrev_null();
+
         section.get_contents().unwrap()
     }
 
@@ -5475,40 +5473,41 @@ mod tests {
         let sibling009_ref = Label::new();
         let sibling009 = Label::new();
 
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .mark(&start)
-            .die(2, |s| s.attr_string("001"))
-                // Valid sibling attribute.
-                .die(1, |s| s.attr_string("002").D8(&sibling004_ref))
-                    // Invalid code to ensure the sibling attribute was used.
-                    .die(10, |s| s.attr_string("003"))
-                        .die_null()
-                    .die_null()
-                .mark(&sibling004)
-                // Invalid sibling attribute.
-                .die(1, |s| s.attr_string("004").attr_ref1(255))
-                    .die(2, |s| s.attr_string("005"))
-                        .die_null()
-                    .die_null()
-                // Sibling attribute in child only.
-                .die(2, |s| s.attr_string("006"))
-                    // Valid sibling attribute.
-                    .die(1, |s| s.attr_string("007").D8(&sibling009_ref))
-                        // Invalid code to ensure the sibling attribute was used.
-                        .die(10, |s| s.attr_string("008"))
-                            .die_null()
-                        .die_null()
-                    .mark(&sibling009)
-                    .die(2, |s| s.attr_string("009"))
-                        .die_null()
-                    .die_null()
-                // No sibling attribute.
-                .die(2, |s| s.attr_string("010"))
-                    .die(2, |s| s.attr_string("011"))
-                        .die_null()
-                    .die_null()
-                .die_null();
+        section.mark(&start)
+               .die(2, |s| s.attr_string("001"))
+                   // Valid sibling attribute.
+                   .die(1, |s| {s.attr_string("002").D8(&sibling004_ref); s})
+                       // Invalid code to ensure the sibling attribute was used.
+                       .die(10, |s| s.attr_string("003"))
+                           .die_null()
+                       .die_null()
+                   .mark(&sibling004)
+                   // Invalid sibling attribute.
+                   .die(1, |s| s.attr_string("004").attr_ref1(255))
+                       .die(2, |s| s.attr_string("005"))
+                           .die_null()
+                       .die_null()
+                   // Sibling attribute in child only.
+                   .die(2, |s| s.attr_string("006"))
+                       // Valid sibling attribute.
+                       .die(1, |s| {s.attr_string("007").D8(&sibling009_ref);s})
+                           // Invalid code to ensure the sibling attribute was used.
+                           .die(10, |s| s.attr_string("008"))
+                               .die_null()
+                           .die_null()
+                       .mark(&sibling009)
+                       .die(2, |s| s.attr_string("009"))
+                           .die_null()
+                       .die_null()
+                   // No sibling attribute.
+                   .die(2, |s| s.attr_string("010"))
+                       .die(2, |s| s.attr_string("011"))
+                           .die_null()
+                       .die_null()
+                   .die_null();
 
         let offset = header_size as u64 + (&sibling004 - &start) as u64;
         sibling004_ref.set_const(offset);
@@ -5561,7 +5560,8 @@ mod tests {
         let header_size = unit.size_of_header();
         let entries_buf = entries_cursor_sibling_entries_buf(header_size);
         unit.entries_buf = EndianSlice::new(&entries_buf, LittleEndian);
-        let section = Section::with_endian(Endian::Little).unit(&mut unit);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit);
         let info_buf = section.get_contents().unwrap();
         let debug_info = DebugInfo::new(&info_buf, LittleEndian);
 
@@ -5603,7 +5603,8 @@ mod tests {
         let header_size = unit.size_of_header();
         let entries_buf = entries_cursor_sibling_entries_buf(header_size);
         unit.entries_buf = EndianSlice::new(&entries_buf, LittleEndian);
-        let section = Section::with_endian(Endian::Little).unit(&mut unit);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit);
         let info_buf = section.get_contents().unwrap();
         let debug_types = DebugTypes::new(&info_buf, LittleEndian);
 
@@ -5657,55 +5658,55 @@ mod tests {
     }
 
     fn entries_tree_tests_debug_abbrevs_buf() -> Vec<u8> {
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev(2, DW_TAG_subprogram, DW_CHILDREN_no)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev_null()
-            .get_contents()
-            .unwrap();
-        section
+        section.abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev(2, DW_TAG_subprogram, DW_CHILDREN_no)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev_null();
+
+        section.get_contents().unwrap()
     }
 
     fn entries_tree_tests_debug_info_buf(header_size: usize) -> (Vec<u8>, UnitOffset) {
         let start = Label::new();
         let entry2 = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .mark(&start)
-            .die(1, |s| s.attr_string("root"))
-                .die(1, |s| s.attr_string("1"))
-                    .die(1, |s| s.attr_string("1a"))
-                        .die_null()
-                    .die(2, |s| s.attr_string("1b"))
-                    .die_null()
-                .mark(&entry2)
-                .die(1, |s| s.attr_string("2"))
-                    .die(1, |s| s.attr_string("2a"))
-                        .die(1, |s| s.attr_string("2a1"))
-                            .die_null()
-                        .die_null()
-                    .die(1, |s| s.attr_string("2b"))
-                        .die(2, |s| s.attr_string("2b1"))
-                        .die_null()
-                    .die_null()
-                .die(1, |s| s.attr_string("3"))
-                    .die(1, |s| s.attr_string("3a"))
-                        .die(2, |s| s.attr_string("3a1"))
-                        .die(2, |s| s.attr_string("3a2"))
-                        .die_null()
-                    .die(2, |s| s.attr_string("3b"))
-                    .die_null()
-                .die(2, |s| s.attr_string("final"))
-                .die_null()
-            .get_contents()
-            .unwrap();
+        section.mark(&start)
+               .die(1, |s| s.attr_string("root"))
+                   .die(1, |s| s.attr_string("1"))
+                       .die(1, |s| s.attr_string("1a"))
+                           .die_null()
+                       .die(2, |s| s.attr_string("1b"))
+                       .die_null()
+                   .mark(&entry2)
+                   .die(1, |s| s.attr_string("2"))
+                       .die(1, |s| s.attr_string("2a"))
+                           .die(1, |s| s.attr_string("2a1"))
+                               .die_null()
+                           .die_null()
+                       .die(1, |s| s.attr_string("2b"))
+                           .die(2, |s| s.attr_string("2b1"))
+                           .die_null()
+                       .die_null()
+                   .die(1, |s| s.attr_string("3"))
+                       .die(1, |s| s.attr_string("3a"))
+                           .die(2, |s| s.attr_string("3a1"))
+                           .die(2, |s| s.attr_string("3a2"))
+                           .die_null()
+                       .die(2, |s| s.attr_string("3b"))
+                       .die_null()
+                   .die(2, |s| s.attr_string("final"))
+                   .die_null();
+
         let entry2 = UnitOffset(header_size + (&entry2 - &start) as usize);
-        (section, entry2)
+        (section.get_contents().unwrap(), entry2)
     }
 
     #[test]
@@ -5754,10 +5755,9 @@ mod tests {
         let header_size = unit.size_of_header();
         let (entries_buf, entry2) = entries_tree_tests_debug_info_buf(header_size);
         unit.entries_buf = EndianSlice::new(&entries_buf, LittleEndian);
-        let info_buf = Section::with_endian(Endian::Little)
-            .unit(&mut unit)
-            .get_contents()
-            .unwrap();
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit);
+        let info_buf = section.get_contents().unwrap();
         let debug_info = DebugInfo::new(&info_buf, LittleEndian);
 
         let unit = debug_info
@@ -5881,27 +5881,30 @@ mod tests {
             );
         }
 
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            .abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr(DW_AT_linkage_name, DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev(2, DW_TAG_variable, DW_CHILDREN_no)
-                .abbrev_attr(DW_AT_name, DW_FORM_string)
-                .abbrev_attr_null()
-            .abbrev_null();
+        section.abbrev(1, DW_TAG_subprogram, DW_CHILDREN_yes)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr(DW_AT_linkage_name, DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev(2, DW_TAG_variable, DW_CHILDREN_no)
+                   .abbrev_attr(DW_AT_name, DW_FORM_string)
+                   .abbrev_attr_null()
+               .abbrev_null();
+
         let abbrevs_buf = section.get_contents().unwrap();
         let debug_abbrev = DebugAbbrev::new(&abbrevs_buf, LittleEndian);
 
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
+        let mut section = Section::with_endian(Endian::Little);
+        section
             .die(1, |s| s.attr_string("f1").attr_string("l1"))
-                .die(2, |s| s.attr_string("v1"))
-                .die(2, |s| s.attr_string("v2"))
-                .die(1, |s| s.attr_string("f2").attr_string("l2"))
-                    .die_null()
-                .die_null();
+            .die(2, |s| s.attr_string("v1"))
+            .die(2, |s| s.attr_string("v2"))
+            .die(1, |s| s.attr_string("f2").attr_string("l2"))
+            .die_null()
+            .die_null();
         let entries_buf = section.get_contents().unwrap();
 
         let encoding = Encoding {
@@ -5917,7 +5920,8 @@ mod tests {
             unit_offset: DebugInfoOffset(0).into(),
             entries_buf: EndianSlice::new(&entries_buf, LittleEndian),
         };
-        let section = Section::with_endian(Endian::Little).unit(&mut unit);
+        let mut section = Section::with_endian(Endian::Little);
+        section.unit(&mut unit);
         let info_buf = section.get_contents().unwrap();
         let debug_info = DebugInfo::new(&info_buf, LittleEndian);
 

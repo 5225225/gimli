@@ -680,7 +680,8 @@ mod tests {
 
     #[test]
     fn test_parse_initial_length_32_ok() {
-        let section = Section::with_endian(Endian::Little).L32(0x7856_3412);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L32(0x7856_3412);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);
@@ -696,8 +697,8 @@ mod tests {
 
     #[test]
     fn test_parse_initial_length_64_ok() {
-        let section = Section::with_endian(Endian::Little)
-            // Dwarf_64_INITIAL_UNIT_LENGTH
+        let mut section = Section::with_endian(Endian::Little);
+        section // Dwarf_64_INITIAL_UNIT_LENGTH
             .L32(0xffff_ffff)
             // Actual length
             .L64(0xffde_bc9a_7856_3412);
@@ -723,7 +724,8 @@ mod tests {
 
     #[test]
     fn test_parse_initial_length_unknown_reserved_value() {
-        let section = Section::with_endian(Endian::Little).L32(0xffff_fffe);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L32(0xffff_fffe);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);
@@ -746,8 +748,8 @@ mod tests {
 
     #[test]
     fn test_parse_initial_length_64_incomplete() {
-        let section = Section::with_endian(Endian::Little)
-            // Dwarf_64_INITIAL_UNIT_LENGTH
+        let mut section = Section::with_endian(Endian::Little);
+        section // Dwarf_64_INITIAL_UNIT_LENGTH
             .L32(0xffff_ffff)
             // Actual length is not long enough.
             .L32(0x7856_3412);
@@ -762,7 +764,8 @@ mod tests {
 
     #[test]
     fn test_parse_offset_32() {
-        let section = Section::with_endian(Endian::Little).L32(0x0123_4567);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L32(0x0123_4567);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);
@@ -777,7 +780,8 @@ mod tests {
 
     #[test]
     fn test_parse_offset_64_small() {
-        let section = Section::with_endian(Endian::Little).L64(0x0123_4567);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L64(0x0123_4567);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);
@@ -793,7 +797,8 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn test_parse_offset_64_large() {
-        let section = Section::with_endian(Endian::Little).L64(0x0123_4567_89ab_cdef);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L64(0x0123_4567_89ab_cdef);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);
@@ -809,7 +814,8 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "32")]
     fn test_parse_offset_64_large() {
-        let section = Section::with_endian(Endian::Little).L64(0x0123_4567_89ab_cdef);
+        let mut section = Section::with_endian(Endian::Little);
+        section.L64(0x0123_4567_89ab_cdef);
         let buf = section.get_contents().unwrap();
 
         let input = &mut EndianSlice::new(&buf, LittleEndian);

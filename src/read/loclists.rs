@@ -639,7 +639,7 @@ mod tests {
     use crate::endianity::LittleEndian;
     use crate::read::{EndianSlice, Range};
     use crate::test_util::GimliSectionMethods;
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     #[test]
     fn test_loclists_32() {
@@ -649,7 +649,8 @@ mod tests {
             address_size: 4,
         };
 
-        let section = Section::with_endian(Endian::Little)
+        let mut section = Section::with_endian(Endian::Little);
+        section
             .L32(0x0300_0000)
             .L32(0x0301_0300)
             .L32(0x0301_0400)
@@ -661,10 +662,11 @@ mod tests {
         let start = Label::new();
         let first = Label::new();
         let size = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // Header
-            .mark(&start)
+        // Header
+        section.mark(&start)
             .L32(&size)
             .L16(encoding.version)
             .L8(encoding.address_size)
@@ -701,6 +703,7 @@ mod tests {
             .L8(0)
             // Some extra data.
             .L32(0xffff_ffff);
+
         size.set_const((&section.here() - &start - 4) as u64);
 
         let buf = section.get_contents().unwrap();
@@ -878,7 +881,8 @@ mod tests {
             address_size: 8,
         };
 
-        let section = Section::with_endian(Endian::Little)
+        let mut section = Section::with_endian(Endian::Little);
+        section
             .L64(0x0300_0000)
             .L64(0x0301_0300)
             .L64(0x0301_0400)
@@ -890,10 +894,11 @@ mod tests {
         let start = Label::new();
         let first = Label::new();
         let size = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // Header
-            .mark(&start)
+        // Header
+        section.mark(&start)
             .L32(0xffff_ffff)
             .L64(&size)
             .L16(encoding.version)
@@ -931,6 +936,7 @@ mod tests {
             .L8(0)
             // Some extra data.
             .L32(0xffff_ffff);
+
         size.set_const((&section.here() - &start - 12) as u64);
 
         let buf = section.get_contents().unwrap();
@@ -1104,10 +1110,11 @@ mod tests {
     fn test_location_list_32() {
         let start = Label::new();
         let first = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // A location before the offset.
-            .mark(&start)
+        // A location before the offset.
+        section.mark(&start)
             .L32(0x10000).L32(0x10100).L16(4).L32(1)
             .mark(&first)
             // A normal location.
@@ -1234,10 +1241,11 @@ mod tests {
     fn test_location_list_64() {
         let start = Label::new();
         let first = Label::new();
+        let mut section = Section::with_endian(Endian::Little);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // A location before the offset.
-            .mark(&start)
+        // A location before the offset.
+        section.mark(&start)
             .L64(0x10000).L64(0x10100).L16(4).L32(1)
             .mark(&first)
             // A normal location.
@@ -1362,10 +1370,10 @@ mod tests {
 
     #[test]
     fn test_locations_invalid() {
+        let mut section = Section::with_endian(Endian::Little);
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Little)
-            // An invalid location range.
-            .L32(0x20000).L32(0x10000).L16(4).L32(1)
+        // An invalid location range.
+        section.L32(0x20000).L32(0x10000).L16(4).L32(1)
             // An invalid range after wrapping.
             .L32(0x20000).L32(0xff01_0000).L16(4).L32(2);
 
@@ -1432,7 +1440,10 @@ mod tests {
             let start = Label::new();
             let first = Label::new();
             let end = Label::new();
-            let mut section = Section::with_endian(Endian::Little)
+
+            let mut section = Section::with_endian(Endian::Little);
+
+            section
                 .mark(&zero)
                 .initial_length(format, &length, &start)
                 .D16(encoding.version)
@@ -1440,10 +1451,13 @@ mod tests {
                 .D8(0)
                 .D32(20)
                 .mark(&first);
+
             for i in 0..20 {
-                section = section.word(format.word_size(), 1000 + i);
+                section.word(format.word_size(), 1000 + i);
             }
-            section = section.mark(&end);
+
+            section.mark(&end);
+
             length.set_const((&end - &start) as u64);
             let section = section.get_contents().unwrap();
 

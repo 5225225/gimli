@@ -282,7 +282,7 @@ mod tests {
     use super::*;
     use crate::test_util::GimliSectionMethods;
     use crate::LittleEndian;
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     #[test]
     fn test_get_str_offset() {
@@ -292,16 +292,17 @@ mod tests {
             let start = Label::new();
             let first = Label::new();
             let end = Label::new();
-            let mut section = Section::with_endian(Endian::Little)
+            let mut section = Section::with_endian(Endian::Little);
+            section
                 .mark(&zero)
                 .initial_length(format, &length, &start)
                 .D16(5)
                 .D16(0)
                 .mark(&first);
             for i in 0..20 {
-                section = section.word(format.word_size(), 1000 + i);
+                section.word(format.word_size(), 1000 + i);
             }
-            section = section.mark(&end);
+            section.mark(&end);
             length.set_const((&end - &start) as u64);
 
             let section = section.get_contents().unwrap();

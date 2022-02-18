@@ -322,12 +322,14 @@ mod tests {
 
     #[test]
     fn test_version_2() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D32(2).D32(0).D32(0).D32(1)
+        // Header.
+        section.D32(2).D32(0).D32(0).D32(1)
             // Slots.
             .D64(0).D32(0);
+
         let buf = section.get_contents().unwrap();
         let buf = EndianSlice::new(&buf, BigEndian);
         let index = UnitIndex::parse(buf).unwrap();
@@ -336,12 +338,14 @@ mod tests {
 
     #[test]
     fn test_version_5() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D16(5).D16(0).D32(0).D32(0).D32(1)
+        // Header.
+        section.D16(5).D16(0).D32(0).D32(0).D32(1)
             // Slots.
             .D64(0).D32(0);
+
         let buf = section.get_contents().unwrap();
         let buf = EndianSlice::new(&buf, BigEndian);
         let index = UnitIndex::parse(buf).unwrap();
@@ -350,12 +354,14 @@ mod tests {
 
     #[test]
     fn test_version_5_invalid() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D32(5).D32(0).D32(0).D32(1)
+        // Header.
+        section.D32(5).D32(0).D32(0).D32(1)
             // Slots.
             .D64(0).D32(0);
+
         let buf = section.get_contents().unwrap();
         let buf = EndianSlice::new(&buf, BigEndian);
         assert!(UnitIndex::parse(buf).is_err());
@@ -363,10 +369,11 @@ mod tests {
 
     #[test]
     fn test_version_2_sections() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D32(2).D32(8).D32(1).D32(2)
+        // Header.
+        section.D32(2).D32(8).D32(1).D32(2)
             // Slots.
             .D64(0).D64(0).D32(0).D32(0)
             // Sections.
@@ -382,6 +389,7 @@ mod tests {
             .D32(11).D32(12).D32(13).D32(14).D32(15).D32(16).D32(17).D32(18)
             // Sizes.
             .D32(21).D32(22).D32(23).D32(24).D32(25).D32(26).D32(27).D32(28);
+
         let buf = section.get_contents().unwrap();
         let buf = EndianSlice::new(&buf, BigEndian);
         let index = UnitIndex::parse(buf).unwrap();
@@ -419,10 +427,11 @@ mod tests {
 
     #[test]
     fn test_version_5_sections() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D16(5).D16(0).D32(7).D32(1).D32(2)
+        // Header.
+        section.D16(5).D16(0).D32(7).D32(1).D32(2)
             // Slots.
             .D64(0).D64(0).D32(0).D32(0)
             // Sections.
@@ -437,6 +446,7 @@ mod tests {
             .D32(11).D32(12).D32(13).D32(14).D32(15).D32(16).D32(17)
             // Sizes.
             .D32(21).D32(22).D32(23).D32(24).D32(25).D32(26).D32(27);
+
         let buf = section.get_contents().unwrap();
         let buf = EndianSlice::new(&buf, BigEndian);
         let index = UnitIndex::parse(buf).unwrap();
@@ -475,10 +485,11 @@ mod tests {
 
     #[test]
     fn test_hash() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D16(5).D16(0).D32(2).D32(3).D32(4)
+        // Header.
+        section.D16(5).D16(0).D32(2).D32(3).D32(4)
             // Slots.
             .D64(0xffff_fff2_ffff_fff1)
             .D64(0xffff_fff0_ffff_fff1)
@@ -507,12 +518,14 @@ mod tests {
 
     #[test]
     fn test_cu_index() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D16(5).D16(0).D32(0).D32(0).D32(1)
+        // Header.
+        section.D16(5).D16(0).D32(0).D32(0).D32(1)
             // Slots.
             .D64(0).D32(0);
+
         let buf = section.get_contents().unwrap();
         let cu_index = DebugCuIndex::new(&buf, BigEndian);
         let index = cu_index.index().unwrap();
@@ -521,12 +534,14 @@ mod tests {
 
     #[test]
     fn test_tu_index() {
+        let mut section = Section::with_endian(Endian::Big);
+
         #[rustfmt::skip]
-        let section = Section::with_endian(Endian::Big)
-            // Header.
-            .D16(5).D16(0).D32(0).D32(0).D32(1)
+        // Header.
+        section.D16(5).D16(0).D32(0).D32(0).D32(1)
             // Slots.
             .D64(0).D32(0);
+
         let buf = section.get_contents().unwrap();
         let tu_index = DebugTuIndex::new(&buf, BigEndian);
         let index = tu_index.index().unwrap();

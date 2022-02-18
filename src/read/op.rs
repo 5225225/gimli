@@ -2065,11 +2065,11 @@ mod tests {
         expect: &Operation<EndianSlice<LittleEndian>>,
         encoding: Encoding,
     ) where
-        F: Fn(Section) -> Section,
+        F: Fn(&mut Section) -> &mut Section,
     {
-        let input = input(Section::with_endian(Endian::Little))
-            .get_contents()
-            .unwrap();
+        let mut section = Section::with_endian(Endian::Little);
+        input(&mut section);
+        let input = section.get_contents().unwrap();
         for i in 1..input.len() {
             check_op_parse_eof(&input[..i], encoding);
         }
@@ -2489,11 +2489,9 @@ mod tests {
 
             for item in inputs.iter() {
                 let (op, ref expect) = *item;
-                let input = Section::with_endian(Endian::Little)
-                    .D8(op.0)
-                    .uleb(*value)
-                    .get_contents()
-                    .unwrap();
+                let mut section = Section::with_endian(Endian::Little);
+                section.D8(op.0).uleb(*value);
+                let input = section.get_contents().unwrap();
                 check_op_parse_simple(&input, expect, encoding);
             }
         }
@@ -2541,12 +2539,9 @@ mod tests {
 
         for v1 in values.iter() {
             for v2 in values.iter() {
-                let input = Section::with_endian(Endian::Little)
-                    .D8(constants::DW_OP_bit_piece.0)
-                    .uleb(*v1)
-                    .uleb(*v2)
-                    .get_contents()
-                    .unwrap();
+                let mut section = Section::with_endian(Endian::Little);
+                section.D8(constants::DW_OP_bit_piece.0).uleb(*v1).uleb(*v2);
+                let input = section.get_contents().unwrap();
                 check_op_parse_simple(
                     &input,
                     &Operation::Piece {

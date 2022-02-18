@@ -86,7 +86,7 @@ mod tests {
     use crate::read::EndianSlice;
     use crate::test_util::GimliSectionMethods;
     use crate::{Format, LittleEndian};
-    use test_assembler::{Endian, Label, LabelMaker, Section};
+    use test_assembler::{Endian, Label, Section};
 
     #[test]
     fn test_get_address() {
@@ -97,7 +97,8 @@ mod tests {
                 let start = Label::new();
                 let first = Label::new();
                 let end = Label::new();
-                let mut section = Section::with_endian(Endian::Little)
+                let mut section = Section::with_endian(Endian::Little);
+                section
                     .mark(&zero)
                     .initial_length(format, &length, &start)
                     .D16(5)
@@ -105,9 +106,9 @@ mod tests {
                     .D8(0)
                     .mark(&first);
                 for i in 0..20 {
-                    section = section.word(address_size, 1000 + i);
+                    section.word(address_size, 1000 + i);
                 }
-                section = section.mark(&end);
+                section.mark(&end);
                 length.set_const((&end - &start) as u64);
 
                 let section = section.get_contents().unwrap();
